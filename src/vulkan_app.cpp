@@ -3,6 +3,8 @@
 //
 
 #include "vulkan_app.h"
+#include "eigen_helper.hpp"
+
 #include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan_core.h>
 
@@ -16,7 +18,9 @@
 #include <cstdint>   // Necessary for uint32_t
 #include <limits>    // Necessary for std::numeric_limits
 
-void HelloTriangleApplication::run() {
+#include <chrono>
+
+void VulkanApplication::run() {
   init_window();
   init_vulkan();
   main_loop();
@@ -87,7 +91,7 @@ static std::vector<char> read_file(std::string const &filename) {
   return buffer;
 }
 
-bool HelloTriangleApplication::check_device_extension_support(
+bool VulkanApplication::check_device_extension_support(
     VkPhysicalDevice device) {
   uint32_t extension_count;
   vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count,
@@ -105,7 +109,7 @@ bool HelloTriangleApplication::check_device_extension_support(
   return required_extensions.empty();
 }
 
-bool HelloTriangleApplication::check_validation_layer_support() {
+bool VulkanApplication::check_validation_layer_support() {
   vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
   std::vector<VkLayerProperties> available_layers(layer_count);
   vkEnumerateInstanceLayerProperties(&layer_count, available_layers.data());
@@ -134,7 +138,7 @@ bool HelloTriangleApplication::check_validation_layer_support() {
   return true;
 }
 
-void HelloTriangleApplication::init_SDL2_extensions() {
+void VulkanApplication::init_SDL2_extensions() {
   SDL_Vulkan_GetInstanceExtensions(window, &extension_count, nullptr);
   if (extension_count) {
     std::vector<const char *> ext_bufs(extension_count);
@@ -151,7 +155,7 @@ void HelloTriangleApplication::init_SDL2_extensions() {
   }
 }
 
-bool HelloTriangleApplication::check_extensions_support() {
+bool VulkanApplication::check_extensions_support() {
   vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
   std::vector<VkExtensionProperties> extensions(extension_count);
   vkEnumerateInstanceExtensionProperties(nullptr, &extension_count,
@@ -181,7 +185,7 @@ bool HelloTriangleApplication::check_extensions_support() {
   return true;
 }
 
-void HelloTriangleApplication::init_window() {
+void VulkanApplication::init_window() {
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
   auto window_flags =
       SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN;
@@ -195,7 +199,7 @@ void HelloTriangleApplication::init_window() {
   }
 }
 
-void HelloTriangleApplication::setup_debug_messenger() {
+void VulkanApplication::setup_debug_messenger() {
   if (!enable_validation_layers) {
     return;
   }
@@ -217,8 +221,8 @@ void HelloTriangleApplication::setup_debug_messenger() {
   }
 }
 
-QueueFamilyIndices HelloTriangleApplication::find_queue_families(
-    VkPhysicalDevice physical_device) {
+QueueFamilyIndices
+VulkanApplication::find_queue_families(VkPhysicalDevice physical_device) {
   uint32_t queue_family_count = 0;
   QueueFamilyIndices result;
   vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
@@ -231,7 +235,7 @@ QueueFamilyIndices HelloTriangleApplication::find_queue_families(
   for (uint32_t i = 0; i < queue_family_count; ++i) {
     if (queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
       result.graphics_family = i;
-      // continue;
+      continue;
     }
 
     if (queue_families[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
@@ -252,7 +256,7 @@ QueueFamilyIndices HelloTriangleApplication::find_queue_families(
   return result;
 }
 
-bool HelloTriangleApplication::is_suitable_device(VkPhysicalDevice device) {
+bool VulkanApplication::is_suitable_device(VkPhysicalDevice device) {
   QueueFamilyIndices indices = find_queue_families(device);
   bool extensions_supported = check_device_extension_support(device);
   bool swapchain_adequate = false;
@@ -266,7 +270,7 @@ bool HelloTriangleApplication::is_suitable_device(VkPhysicalDevice device) {
   return indices.is_complete() && extensions_supported && swapchain_adequate;
 }
 
-void HelloTriangleApplication::pick_physical_device() {
+void VulkanApplication::pick_physical_device() {
   vkEnumeratePhysicalDevices(instance, &device_count, nullptr);
   if (device_count == 0) {
     throw std::runtime_error("failed to find GPUs with Vulkan support!");
@@ -281,7 +285,7 @@ void HelloTriangleApplication::pick_physical_device() {
   }
 }
 
-void HelloTriangleApplication::create_logical_device() {
+void VulkanApplication::create_logical_device() {
   QueueFamilyIndices indices = find_queue_families(physical_device);
 
   std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
@@ -290,8 +294,8 @@ void HelloTriangleApplication::create_logical_device() {
                                            indices.transfer_family.value(),
                                            indices.present_family.value()};
 
-  std::cerr << "unique queue family size " << queue_families_set.size()
-            << std::endl;
+//  std::cerr << "unique queue family size " << queue_families_set.size()
+//            << std::endl;
 
   float queue_priority = 1.0f;
   for (auto queue_family : queue_families_set) {
@@ -332,7 +336,7 @@ void HelloTriangleApplication::create_logical_device() {
 }
 
 // platform related part
-void HelloTriangleApplication::create_surface() {
+void VulkanApplication::create_surface() {
   if (!SDL_Vulkan_CreateSurface(window, instance, &surface)) {
     throw std::runtime_error(
         "failed to create Vulkan compatible surface using SDL\n");
@@ -340,7 +344,7 @@ void HelloTriangleApplication::create_surface() {
 }
 
 SwapChainSupportDetails
-HelloTriangleApplication::query_swapchain_support(VkPhysicalDevice device) {
+VulkanApplication::query_swapchain_support(VkPhysicalDevice device) {
   SwapChainSupportDetails details;
 
   // query surface extent (width, height) from surface
@@ -366,7 +370,7 @@ HelloTriangleApplication::query_swapchain_support(VkPhysicalDevice device) {
   return details;
 }
 
-VkSurfaceFormatKHR HelloTriangleApplication::choose_swap_surface_format(
+VkSurfaceFormatKHR VulkanApplication::choose_swap_surface_format(
     const std::vector<VkSurfaceFormatKHR> &available_formats) {
   for (auto const &format : available_formats) {
     if (format.format == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -377,17 +381,19 @@ VkSurfaceFormatKHR HelloTriangleApplication::choose_swap_surface_format(
   return available_formats.front();
 }
 
-VkPresentModeKHR HelloTriangleApplication::choose_swap_present_mode(
-    const std::vector<VkPresentModeKHR> &availabla_present_modes) {
-  for (auto const &mode : availabla_present_modes) {
+VkPresentModeKHR VulkanApplication::choose_swap_present_mode(
+    const std::vector<VkPresentModeKHR> &available_present_modes) {
+  for (auto const &mode : available_present_modes) {
     if (mode == VK_PRESENT_MODE_MAILBOX_KHR) {
       return mode;
     }
   }
+  return VK_PRESENT_MODE_IMMEDIATE_KHR;
+  std::cerr << "falling back to FIFO mode!\n";
   return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkExtent2D HelloTriangleApplication::choose_swap_extent(
+VkExtent2D VulkanApplication::choose_swap_extent(
     const VkSurfaceCapabilitiesKHR &capabilities) {
   if (capabilities.currentExtent.width !=
       std::numeric_limits<uint32_t>::max()) {
@@ -409,7 +415,7 @@ VkExtent2D HelloTriangleApplication::choose_swap_extent(
   }
 }
 
-void HelloTriangleApplication::create_swapchain() {
+void VulkanApplication::create_swapchain() {
   SwapChainSupportDetails swapchain_support =
       query_swapchain_support(physical_device);
 
@@ -482,7 +488,7 @@ void HelloTriangleApplication::create_swapchain() {
             << std::endl;
 }
 
-void HelloTriangleApplication::create_image_views() {
+void VulkanApplication::create_image_views() {
   swapchain_image_views.resize(swapchain_images.size());
   for (size_t i = 0; i < swapchain_images.size(); ++i) {
     VkImageViewCreateInfo create_info{
@@ -510,7 +516,7 @@ void HelloTriangleApplication::create_image_views() {
   };
 }
 
-void HelloTriangleApplication::create_render_pass() {
+void VulkanApplication::create_render_pass() {
   VkAttachmentDescription color_attachment{
       .format = swapchain_image_format,
       .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -559,7 +565,7 @@ void HelloTriangleApplication::create_render_pass() {
 }
 
 VkShaderModule
-HelloTriangleApplication::create_shader_module(std::vector<char> const &code) {
+VulkanApplication::create_shader_module(std::vector<char> const &code) {
   VkShaderModuleCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       .codeSize = code.size(),
@@ -574,11 +580,9 @@ HelloTriangleApplication::create_shader_module(std::vector<char> const &code) {
   return shader_module;
 }
 
-void HelloTriangleApplication::create_graphics_pipeline() {
-  auto vert_shader_code = read_file(
-      "D:/Develop/vk_tutorial/shaders/hello_triangle/triangle_vert.spv");
-  auto frag_shader_code = read_file(
-      "D:/Develop/vk_tutorial/shaders/hello_triangle/triangle_frag.spv");
+void VulkanApplication::create_graphics_pipeline() {
+  auto vert_shader_code = read_file("shaders/vert.spv");
+  auto frag_shader_code = read_file("shaders/frag.spv");
 
   auto vert_shader_module = create_shader_module(vert_shader_code);
   auto frag_shader_module = create_shader_module(frag_shader_code);
@@ -655,9 +659,9 @@ void HelloTriangleApplication::create_graphics_pipeline() {
                                     // far_z] instead of discard violates
       .rasterizerDiscardEnable = VK_FALSE,
       .polygonMode = VK_POLYGON_MODE_FILL,
-      .cullMode = VK_CULL_MODE_BACK_BIT, // culling back face
-      .frontFace =
-          VK_FRONT_FACE_CLOCKWISE, // specifies the vertex order for front faces
+      .cullMode = VK_CULL_MODE_BACK_BIT,            // culling back face
+      .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE, // specifies the vertex
+                                                    // order for front faces
       .depthBiasEnable = VK_FALSE,
       .depthBiasConstantFactor = 0.0f,
       .depthBiasClamp = 0.0f,
@@ -718,8 +722,8 @@ void HelloTriangleApplication::create_graphics_pipeline() {
   // 9. Pipeline Layout:  dynamic state variables settings (uniform)
   VkPipelineLayoutCreateInfo pipeline_layout_info{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-      .setLayoutCount = 0,
-      .pSetLayouts = nullptr,
+      .setLayoutCount = 1,
+      .pSetLayouts = &descriptor_set_layout,
       .pushConstantRangeCount = 0,
       .pPushConstantRanges = nullptr};
 
@@ -759,7 +763,7 @@ void HelloTriangleApplication::create_graphics_pipeline() {
   vkDestroyShaderModule(device, vert_shader_module, nullptr);
 }
 
-void HelloTriangleApplication::create_framebuffers() {
+void VulkanApplication::create_framebuffers() {
   swapchain_framebuffers.resize(swapchain_image_views.size());
   for (size_t i = 0; i < swapchain_image_views.size(); ++i) {
     VkImageView attachments[] = {swapchain_image_views[i]};
@@ -780,7 +784,7 @@ void HelloTriangleApplication::create_framebuffers() {
   }
 }
 
-void HelloTriangleApplication::create_command_pool() {
+void VulkanApplication::create_command_pool() {
   QueueFamilyIndices queue_family_indices =
       find_queue_families(physical_device);
   VkCommandPoolCreateInfo pool_info{
@@ -807,7 +811,7 @@ void HelloTriangleApplication::create_command_pool() {
   }
 }
 
-void HelloTriangleApplication::create_command_buffer() {
+void VulkanApplication::create_command_buffer() {
   command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
   VkCommandBufferAllocateInfo alloc_info{
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -821,8 +825,8 @@ void HelloTriangleApplication::create_command_buffer() {
   }
 }
 
-void HelloTriangleApplication::record_command_buffer(
-    VkCommandBuffer command_buffer, uint32_t image_index) {
+void VulkanApplication::record_command_buffer(VkCommandBuffer command_buffer,
+                                              uint32_t image_index) {
   VkCommandBufferBeginInfo begin_info{
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
       .flags = 0,
@@ -846,16 +850,19 @@ void HelloTriangleApplication::record_command_buffer(
 
   vkCmdBeginRenderPass(command_buffer, &render_pass_info,
                        VK_SUBPASS_CONTENTS_INLINE);
-  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    graphics_pipeline);
 
-  VkBuffer vertex_buffers[] = {vertex_buffer};
-  VkDeviceSize offsets[] = {0};
-  vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-  vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_pipeline);
+    VkBuffer vertex_buffers[] = {vertex_buffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+    vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
-  vkCmdDrawIndexed(command_buffer, (uint32_t)indices.size(), 1, 0, 0, 0);
-  // vkCmdDraw(command_buffer, (uint32_t)vertices.size(), 1, 0, 0);
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipeline_layout, 0, 1,
+                            &descriptor_sets[current_frame], 0, nullptr);
+    vkCmdDrawIndexed(command_buffer, (uint32_t)indices.size(), 1, 0, 0, 0);
+    // vkCmdDraw(command_buffer, (uint32_t)vertices.size(), 1, 0, 0);
 
   vkCmdEndRenderPass(command_buffer);
   if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
@@ -863,7 +870,7 @@ void HelloTriangleApplication::record_command_buffer(
   }
 }
 
-void HelloTriangleApplication::create_sync_objects() {
+void VulkanApplication::create_sync_objects() {
   image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
   render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
   in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
@@ -885,7 +892,7 @@ void HelloTriangleApplication::create_sync_objects() {
   }
 }
 
-void HelloTriangleApplication::init_vulkan() {
+void VulkanApplication::init_vulkan() {
   create_instance();
   setup_debug_messenger();
   create_surface();
@@ -894,17 +901,20 @@ void HelloTriangleApplication::init_vulkan() {
   create_swapchain();
   create_image_views();
   create_render_pass();
+  create_descriptor_set_layout(); // set memory layout first
   create_graphics_pipeline();
   create_framebuffers();
   create_command_pool();
   create_vertex_buffer();
   create_index_buffer();
+  create_uniform_buffers();
+  create_descriptor_pool();
+  create_descriptor_sets();
   create_command_buffer();
   create_sync_objects();
 }
 
-void HelloTriangleApplication::cleanup_swapchain() {
-
+void VulkanApplication::cleanup_swapchain() {
   for (auto framebuffer : swapchain_framebuffers) {
     vkDestroyFramebuffer(device, framebuffer, nullptr);
   }
@@ -917,7 +927,7 @@ void HelloTriangleApplication::cleanup_swapchain() {
   vkDestroySwapchainKHR(device, swapchain, nullptr);
 }
 
-void HelloTriangleApplication::recreate_swapchain() {
+void VulkanApplication::recreate_swapchain() {
   /*SDL_Vulkan_GetDrawableSize(window, &width, &height);
   while (width == 0 || height == 0) {
     SDL_Vulkan_GetDrawableSize(window, &width, &height);
@@ -932,7 +942,7 @@ void HelloTriangleApplication::recreate_swapchain() {
   create_framebuffers();
 }
 
-void HelloTriangleApplication::create_instance() {
+void VulkanApplication::create_instance() {
 
   VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
                              .pNext = nullptr,
@@ -977,8 +987,12 @@ void HelloTriangleApplication::create_instance() {
   is_initialized = true;
 }
 
-void HelloTriangleApplication::main_loop() {
+void VulkanApplication::main_loop() {
   SDL_Event e;
+  uint32_t start_time = SDL_GetTicks();
+  uint32_t current_time;
+  uint32_t fps_frames = 0;
+
   while (is_running) {
     while (SDL_PollEvent(&e) != 0) {
       // do rendering loop
@@ -987,19 +1001,19 @@ void HelloTriangleApplication::main_loop() {
       if (e.type == SDL_WINDOWEVENT) {
         if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
           // auto app =
-          // reinterpret_cast<HelloTriangleApplication*>(SDL_GetWindowData(window,
+          // reinterpret_cast<VulkanApplication*>(SDL_GetWindowData(window,
           // "App")); app->framebuffer_resized = true;
           // framebuffer_resized = true; // NO NEED FOR SDL2 surface
         }
       }
-
+      SDL_SetWindowTitle(window, (std::string("SDL_Vulkan_Demo, frames:") + std::to_string(++fps_frames)).c_str());
       draw_frame();
     }
   }
   vkDeviceWaitIdle(device);
 }
 
-void HelloTriangleApplication::draw_frame() {
+void VulkanApplication::draw_frame() {
   // frame steps outline
   // 1. wait for the prev frame to finish
   // 2. acquire an image from the swap chain
@@ -1017,6 +1031,7 @@ void HelloTriangleApplication::draw_frame() {
   auto result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX,
                                       image_available_semaphores[current_frame],
                                       VK_NULL_HANDLE, &image_index);
+
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     framebuffer_resized = false;
     recreate_swapchain();
@@ -1027,16 +1042,19 @@ void HelloTriangleApplication::draw_frame() {
   vkResetFences(device, 1,
                 &in_flight_fences[current_frame]); // clear immediately
 
+  update_uniform_buffer(current_frame);
+
   vkResetCommandBuffer(command_buffers[current_frame], 0);
   record_command_buffer(command_buffers[current_frame], image_index);
 
   VkSemaphore wait_semaphores[] = {
-      image_available_semaphores[current_frame]}; // GPU wait for these
+      image_available_semaphores[current_frame]}; // GPU waits for these
                                                   // semaphores
   VkSemaphore signal_semaphores[] = {
-      render_finished_semaphores[current_frame]}; // GPU set these semaphores
+      render_finished_semaphores[current_frame]}; // GPU sets these semaphores
   VkPipelineStageFlags wait_stages[] = {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
   VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                            .waitSemaphoreCount = 1,
                            .pWaitSemaphores = wait_semaphores,
@@ -1077,9 +1095,16 @@ void HelloTriangleApplication::draw_frame() {
   current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void HelloTriangleApplication::cleanup() {
+void VulkanApplication::cleanup() {
   if (is_initialized) {
     cleanup_swapchain();
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+      vkDestroyBuffer(device, uniform_buffers[i], nullptr);
+      vkFreeMemory(device, uniform_buffers_memory[i], nullptr);
+    }
+    vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
+    vkDestroyDescriptorSetLayout(device, descriptor_set_layout, nullptr);
     vkDestroyBuffer(device, index_buffer, nullptr);
     vkFreeMemory(device, index_buffer_memory, nullptr);
     vkDestroyBuffer(device, vertex_buffer, nullptr);
@@ -1103,9 +1128,8 @@ void HelloTriangleApplication::cleanup() {
   }
 }
 
-uint32_t
-HelloTriangleApplication::find_memory_type(uint32_t type_filter,
-                                           VkMemoryPropertyFlags properties) {
+uint32_t VulkanApplication::find_memory_type(uint32_t type_filter,
+                                             VkMemoryPropertyFlags properties) {
   VkPhysicalDeviceMemoryProperties mem_properties;
   vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
   for (uint32_t i = 0; i < mem_properties.memoryTypeCount; i++) {
@@ -1117,11 +1141,11 @@ HelloTriangleApplication::find_memory_type(uint32_t type_filter,
   }
   throw std::runtime_error("failed to find suitable memory type!");
 }
-void HelloTriangleApplication::create_buffer(VkDeviceSize size,
-                                             VkBufferUsageFlags usage,
-                                             VkMemoryPropertyFlags properties,
-                                             VkBuffer &buffer,
-                                             VkDeviceMemory &buffer_memory) {
+void VulkanApplication::create_buffer(VkDeviceSize size,
+                                      VkBufferUsageFlags usage,
+                                      VkMemoryPropertyFlags properties,
+                                      VkBuffer &buffer,
+                                      VkDeviceMemory &buffer_memory) {
   auto queue_indices = find_queue_families(physical_device);
   std::vector<uint32_t> indices;
   if (queue_indices.graphics_family.value() ==
@@ -1166,9 +1190,8 @@ void HelloTriangleApplication::create_buffer(VkDeviceSize size,
   vkBindBufferMemory(device, buffer, buffer_memory, 0);
 }
 
-void HelloTriangleApplication::copy_buffer(VkBuffer src_buffer,
-                                           VkBuffer dst_buffer,
-                                           VkDeviceSize size) {
+void VulkanApplication::copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer,
+                                    VkDeviceSize size) {
   VkCommandBufferAllocateInfo alloc_info{
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
       .commandPool = transfer_command_pool,
@@ -1183,7 +1206,10 @@ void HelloTriangleApplication::copy_buffer(VkBuffer src_buffer,
       .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT // once submit, reset
   };
 
-  vkBeginCommandBuffer(transfer_command_buffer, &begin_info);
+  if (vkBeginCommandBuffer(transfer_command_buffer, &begin_info) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to begin transfer command buffer!");
+  }
 
   VkBufferCopy copy_region{.srcOffset = 0, .dstOffset = 0, .size = size};
   vkCmdCopyBuffer(transfer_command_buffer, src_buffer, dst_buffer, 1,
@@ -1203,7 +1229,7 @@ void HelloTriangleApplication::copy_buffer(VkBuffer src_buffer,
                        &transfer_command_buffer);
 }
 
-void HelloTriangleApplication::create_vertex_buffer() {
+void VulkanApplication::create_vertex_buffer() {
 
   VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
   VkBuffer staging_buffer;
@@ -1230,7 +1256,7 @@ void HelloTriangleApplication::create_vertex_buffer() {
   vkDestroyBuffer(device, staging_buffer, nullptr);
   vkFreeMemory(device, staging_buffer_memory, nullptr);
 }
-void HelloTriangleApplication::create_index_buffer() {
+void VulkanApplication::create_index_buffer() {
 
   VkDeviceSize buffer_size = sizeof(indices[0]) * indices.size();
   VkBuffer staging_buffer;
@@ -1256,4 +1282,117 @@ void HelloTriangleApplication::create_index_buffer() {
   // destroy buffers explicitly
   vkDestroyBuffer(device, staging_buffer, nullptr);
   vkFreeMemory(device, staging_buffer_memory, nullptr);
+}
+void VulkanApplication::create_descriptor_set_layout() {
+  VkDescriptorSetLayoutBinding ubo_layout_binding{
+      .binding = 0,
+      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      .descriptorCount = 1, // could be uniform array
+      .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+      .pImmutableSamplers = nullptr // relevant for sampling related descriptor
+  };
+
+  VkDescriptorSetLayoutCreateInfo layout_info{
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+      .bindingCount = 1,
+      .pBindings = &ubo_layout_binding};
+
+  if (vkCreateDescriptorSetLayout(device, &layout_info, nullptr,
+                                  &descriptor_set_layout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create descriptor set layout!");
+  }
+}
+void VulkanApplication::create_uniform_buffers() {
+  VkDeviceSize buffer_size = sizeof(UniformBufferObject);
+
+  uniform_buffers.resize(MAX_FRAMES_IN_FLIGHT);
+  uniform_buffers_memory.resize(MAX_FRAMES_IN_FLIGHT);
+
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+    create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  uniform_buffers[i], uniform_buffers_memory[i]);
+  }
+}
+void VulkanApplication::update_uniform_buffer(uint32_t current_image) {
+  static auto start_time = std::chrono::high_resolution_clock::now();
+  auto current_time = std::chrono::high_resolution_clock::now();
+  float time = std::chrono::duration<float, std::chrono::seconds::period>(
+                   current_time - start_time)
+                   .count();
+
+  using namespace Eigen;
+  using namespace EigenHelper;
+
+  Eigen::Matrix4f model = EigenHelper::rotate(time * 90.0f / 180.0f * 3.1415926,
+                                              Eigen::Vector3f::UnitZ());
+  Eigen::Matrix4f view = EigenHelper::lookAt(Eigen::Vector3f(2.0f, 2.0f, 2.0f),
+                                             Eigen::Vector3f(0.0f, 0.0f, 0.0f),
+                                             Eigen::Vector3f(0.0f, 0.0f, 1.0f));
+  Eigen::Matrix4f project = EigenHelper::perspective(
+      45.0f / 180.0f * 3.1415926,
+      swapchain_extent.width / (float)swapchain_extent.height, 0.1, 10.f);
+
+  UniformBufferObject ubo{.model = model, .view = view, .project = project};
+  ubo.project(1, 1) *= -1;
+
+  void *data;
+  vkMapMemory(device, uniform_buffers_memory[current_image], 0,
+              sizeof(ubo), 0, &data);
+  memcpy(data, &ubo, sizeof(ubo));
+  vkUnmapMemory(device, uniform_buffers_memory[current_image]);
+}
+
+void VulkanApplication::create_descriptor_pool() {
+  VkDescriptorPoolSize pool_size{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 .descriptorCount =
+                                     (uint32_t)MAX_FRAMES_IN_FLIGHT};
+
+  VkDescriptorPoolCreateInfo pool_info{
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+      .maxSets = (uint32_t)MAX_FRAMES_IN_FLIGHT, // descriptor set max size
+      .poolSizeCount = 1,
+      .pPoolSizes = &pool_size,
+  };
+
+  if (vkCreateDescriptorPool(device, &pool_info, nullptr, &descriptor_pool) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to create descriptor pool!");
+  }
+}
+
+void VulkanApplication::create_descriptor_sets() {
+  std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT,
+                                             descriptor_set_layout);
+  VkDescriptorSetAllocateInfo alloc_info{
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+      .descriptorPool = descriptor_pool,
+      .descriptorSetCount = (uint32_t)MAX_FRAMES_IN_FLIGHT,
+      .pSetLayouts = layouts.data()};
+
+  descriptor_sets.resize(MAX_FRAMES_IN_FLIGHT);
+  if (vkAllocateDescriptorSets(device, &alloc_info, descriptor_sets.data()) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to allocate descriptor sets!");
+  }
+
+  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+    VkDescriptorBufferInfo buffer_info{.buffer = uniform_buffers[i],
+                                       .offset = 0,
+                                       .range = sizeof(UniformBufferObject) };
+
+    VkWriteDescriptorSet descriptor_write{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = descriptor_sets[i],
+        .dstBinding = 0,      // binding location
+        .dstArrayElement = 0, // first index
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pImageInfo = nullptr,       // refer to image data
+        .pBufferInfo = &buffer_info, // refer to buffer data
+        .pTexelBufferView = nullptr  // refer to buffer view
+    };
+    vkUpdateDescriptorSets(device, 1, &descriptor_write, 0, nullptr);
+  }
 }

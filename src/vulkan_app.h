@@ -47,6 +47,12 @@ typedef struct Vertex {
 
 } Vertex;
 
+typedef struct UniformBufferObject {
+  Eigen::Matrix4f model;
+  Eigen::Matrix4f view;
+  Eigen::Matrix4f project;
+} UniformBufferObject;
+
 typedef struct QueueFamilyIndices {
   std::optional<uint32_t> graphics_family;
   std::optional<uint32_t> transfer_family;
@@ -63,7 +69,7 @@ typedef struct SwapChainSupportDetails {
   std::vector<VkPresentModeKHR> present_modes;
 } SwapChainSupportDetails;
 
-class HelloTriangleApplication {
+class VulkanApplication {
 public:
   void run();
 
@@ -77,7 +83,7 @@ public:
   std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
 
 private:
-  static const int MAX_FRAMES_IN_FLIGHT = 1;
+  static const int MAX_FRAMES_IN_FLIGHT = 2;
   SDL_Window *window = nullptr;
   int width = 800;
   int height = 600;
@@ -112,6 +118,9 @@ private:
   VkExtent2D swapchain_extent;
   std::vector<VkImageView> swapchain_image_views; // using an image as a texture
   VkRenderPass render_pass;
+  VkDescriptorSetLayout descriptor_set_layout;
+  VkDescriptorPool descriptor_pool; // alloc descriptor_sets in the pool
+  std::vector<VkDescriptorSet> descriptor_sets;
   VkPipelineLayout pipeline_layout;
   VkPipeline graphics_pipeline;
   std::vector<VkFramebuffer> swapchain_framebuffers;
@@ -129,6 +138,8 @@ private:
   VkDeviceMemory vertex_buffer_memory; // __DEVICE__
   VkBuffer index_buffer;
   VkDeviceMemory index_buffer_memory;
+  std::vector<VkBuffer> uniform_buffers;
+  std::vector<VkDeviceMemory> uniform_buffers_memory;
 
   void init_window();
   void init_vulkan();
@@ -161,6 +172,8 @@ private:
   void create_image_views();
   void create_render_pass();
   VkShaderModule create_shader_module(std::vector<char> const &code);
+
+  void create_descriptor_set_layout();
   void create_graphics_pipeline();
   void create_framebuffers();
   void create_command_pool();
@@ -171,6 +184,10 @@ private:
   void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
   void create_vertex_buffer();
   void create_index_buffer();
+  void create_uniform_buffers();
+  void create_descriptor_pool();
+  void create_descriptor_sets();
+  void update_uniform_buffer(uint32_t current_image);
   void create_command_buffer();
   void record_command_buffer(VkCommandBuffer command_buffer,
                              uint32_t image_index);

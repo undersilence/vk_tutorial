@@ -5,7 +5,7 @@
 
 int main(int argc, char** argv) {
 
-  HelloTriangleApplication app;
+  VulkanApplication app;
   try {
     app.run();
   }
