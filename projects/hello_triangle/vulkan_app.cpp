@@ -217,20 +217,25 @@ void HelloTriangleApplication::setup_debug_messenger() {
   }
 }
 
-QueueFamilyIndices
-HelloTriangleApplication::find_queue_families(VkPhysicalDevice device) {
+QueueFamilyIndices HelloTriangleApplication::find_queue_families(
+    VkPhysicalDevice physical_device) {
   uint32_t queue_family_count = 0;
   QueueFamilyIndices result;
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count,
+  vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
                                            nullptr);
 
   std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count,
+  vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
                                            queue_families.data());
 
   for (uint32_t i = 0; i < queue_family_count; ++i) {
     if (queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
       result.graphics_family = i;
+      // continue;
+    }
+
+    if (queue_families[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+      result.transfer_family = i;
     }
 
     VkBool32 present_support = false;
@@ -280,8 +285,13 @@ void HelloTriangleApplication::create_logical_device() {
   QueueFamilyIndices indices = find_queue_families(physical_device);
 
   std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
+  // merge same queue_family indices
   std::set<uint32_t> queue_families_set = {indices.graphics_family.value(),
+                                           indices.transfer_family.value(),
                                            indices.present_family.value()};
+
+  std::cerr << "unique queue family size " << queue_families_set.size()
+            << std::endl;
 
   float queue_priority = 1.0f;
   for (auto queue_family : queue_families_set) {
@@ -298,12 +308,10 @@ void HelloTriangleApplication::create_logical_device() {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size()),
       .pQueueCreateInfos = queue_create_infos.data(), // array here
+      // enable devices' extensions
+      .enabledExtensionCount = (uint32_t)device_extensions.size(),
+      .ppEnabledExtensionNames = device_extensions.data(),
       .pEnabledFeatures = &device_features};
-
-  // enable devices' extensions
-  create_info.enabledExtensionCount =
-      static_cast<uint32_t>(device_extensions.size());
-  create_info.ppEnabledExtensionNames = device_extensions.data();
 
   if (enable_validation_layers) {
     create_info.enabledLayerCount = layer_count;
@@ -319,6 +327,7 @@ void HelloTriangleApplication::create_logical_device() {
 
   // retrieving queue handles, zero means first queue(element 0)
   vkGetDeviceQueue(device, indices.graphics_family.value(), 0, &graphics_queue);
+  vkGetDeviceQueue(device, indices.transfer_family.value(), 0, &transfer_queue);
   vkGetDeviceQueue(device, indices.present_family.value(), 0, &present_queue);
 }
 
@@ -786,6 +795,16 @@ void HelloTriangleApplication::create_command_pool() {
       VK_SUCCESS) {
     throw std::runtime_error("failed to create command pool!");
   }
+
+  VkCommandPoolCreateInfo transfer_pool_info{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+      .queueFamilyIndex = queue_family_indices.transfer_family.value()};
+
+  if (vkCreateCommandPool(device, &transfer_pool_info, nullptr,
+                          &transfer_command_pool) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create transfer command pool!");
+  }
 }
 
 void HelloTriangleApplication::create_command_buffer() {
@@ -833,8 +852,10 @@ void HelloTriangleApplication::record_command_buffer(
   VkBuffer vertex_buffers[] = {vertex_buffer};
   VkDeviceSize offsets[] = {0};
   vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+  vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
-  vkCmdDraw(command_buffer, (uint32_t)vertices.size(), 1, 0, 0);
+  vkCmdDrawIndexed(command_buffer, (uint32_t)indices.size(), 1, 0, 0, 0);
+  // vkCmdDraw(command_buffer, (uint32_t)vertices.size(), 1, 0, 0);
 
   vkCmdEndRenderPass(command_buffer);
   if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
@@ -877,6 +898,7 @@ void HelloTriangleApplication::init_vulkan() {
   create_framebuffers();
   create_command_pool();
   create_vertex_buffer();
+  create_index_buffer();
   create_command_buffer();
   create_sync_objects();
 }
@@ -967,7 +989,7 @@ void HelloTriangleApplication::main_loop() {
           // auto app =
           // reinterpret_cast<HelloTriangleApplication*>(SDL_GetWindowData(window,
           // "App")); app->framebuffer_resized = true;
-          framebuffer_resized = true;
+          // framebuffer_resized = true; // NO NEED FOR SDL2 surface
         }
       }
 
@@ -1058,7 +1080,8 @@ void HelloTriangleApplication::draw_frame() {
 void HelloTriangleApplication::cleanup() {
   if (is_initialized) {
     cleanup_swapchain();
-
+    vkDestroyBuffer(device, index_buffer, nullptr);
+    vkFreeMemory(device, index_buffer_memory, nullptr);
     vkDestroyBuffer(device, vertex_buffer, nullptr);
     vkFreeMemory(device, vertex_buffer_memory, nullptr);
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
@@ -1068,6 +1091,7 @@ void HelloTriangleApplication::cleanup() {
     }
 
     vkDestroyCommandPool(device, command_pool, nullptr);
+    vkDestroyCommandPool(device, transfer_command_pool, nullptr);
     vkDestroyDevice(device, nullptr);
     if (enable_validation_layers) {
       DestroyDebugUtilsMessengerEXT(instance, debug_messenger, nullptr);
@@ -1093,20 +1117,37 @@ HelloTriangleApplication::find_memory_type(uint32_t type_filter,
   }
   throw std::runtime_error("failed to find suitable memory type!");
 }
+void HelloTriangleApplication::create_buffer(VkDeviceSize size,
+                                             VkBufferUsageFlags usage,
+                                             VkMemoryPropertyFlags properties,
+                                             VkBuffer &buffer,
+                                             VkDeviceMemory &buffer_memory) {
+  auto queue_indices = find_queue_families(physical_device);
+  std::vector<uint32_t> indices;
+  if (queue_indices.graphics_family.value() ==
+      queue_indices.transfer_family.value()) {
+    indices.push_back(queue_indices.graphics_family.value());
+  } else {
+    indices.push_back(queue_indices.graphics_family.value());
+    indices.push_back(queue_indices.transfer_family.value());
+  }
 
-void HelloTriangleApplication::create_vertex_buffer() {
-  VkBufferCreateInfo buffer_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                 .size = sizeof(vertices[0]) * vertices.size(),
-                                 .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
+  VkBufferCreateInfo buffer_info{
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size = size,
+      .usage = usage,
+      .sharingMode = (uint32_t)indices.size() == 1 ? VK_SHARING_MODE_EXCLUSIVE
+                                                   : VK_SHARING_MODE_CONCURRENT,
+      // create buffer which queues included
+      .queueFamilyIndexCount = (uint32_t)indices.size(),
+      .pQueueFamilyIndices = indices.data()};
 
-  if (vkCreateBuffer(device, &buffer_info, nullptr, &vertex_buffer) !=
-      VK_SUCCESS) {
+  if (vkCreateBuffer(device, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
     throw std::runtime_error("failed to create vertex buffer!");
   }
 
   VkMemoryRequirements mem_requirements;
-  vkGetBufferMemoryRequirements(device, vertex_buffer, &mem_requirements);
+  vkGetBufferMemoryRequirements(device, buffer, &mem_requirements);
 
   // GPU memory alloc
   VkMemoryAllocateInfo alloc_info{
@@ -1114,21 +1155,105 @@ void HelloTriangleApplication::create_vertex_buffer() {
       .allocationSize = mem_requirements.size,
       // enable write from CPU && CPU/GPU memory strictly coherent
       .memoryTypeIndex =
-          find_memory_type(mem_requirements.memoryTypeBits,
-                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
+          find_memory_type(mem_requirements.memoryTypeBits, properties)};
 
-  if (vkAllocateMemory(device, &alloc_info, nullptr, &vertex_buffer_memory) !=
+  if (vkAllocateMemory(device, &alloc_info, nullptr, &buffer_memory) !=
       VK_SUCCESS) {
     throw std::runtime_error("failed to allocate vertex buffer on GPU memory!");
   }
 
   // bind CPU & GPU memories
-  vkBindBufferMemory(device, vertex_buffer, vertex_buffer_memory, 0);
-  // mapping the buffer memory
+  vkBindBufferMemory(device, buffer, buffer_memory, 0);
+}
+
+void HelloTriangleApplication::copy_buffer(VkBuffer src_buffer,
+                                           VkBuffer dst_buffer,
+                                           VkDeviceSize size) {
+  VkCommandBufferAllocateInfo alloc_info{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool = transfer_command_pool,
+      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = 1};
+
+  VkCommandBuffer transfer_command_buffer;
+  vkAllocateCommandBuffers(device, &alloc_info, &transfer_command_buffer);
+  // create transient cmd buffer
+  VkCommandBufferBeginInfo begin_info{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT // once submit, reset
+  };
+
+  vkBeginCommandBuffer(transfer_command_buffer, &begin_info);
+
+  VkBufferCopy copy_region{.srcOffset = 0, .dstOffset = 0, .size = size};
+  vkCmdCopyBuffer(transfer_command_buffer, src_buffer, dst_buffer, 1,
+                  &copy_region);
+
+  vkEndCommandBuffer(transfer_command_buffer); // stop recording
+
+  VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                           .commandBufferCount = 1,
+                           .pCommandBuffers = &transfer_command_buffer};
+
+  vkQueueSubmit(transfer_queue, 1, &submit_info, nullptr);
+  vkQueueWaitIdle(transfer_queue);
+
+  // don't forget to clean cmd buffer
+  vkFreeCommandBuffers(device, transfer_command_pool, 1,
+                       &transfer_command_buffer);
+}
+
+void HelloTriangleApplication::create_vertex_buffer() {
+
+  VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
+  VkBuffer staging_buffer;
+  VkDeviceMemory staging_buffer_memory;
+
+  create_buffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                staging_buffer, staging_buffer_memory);
+  // copy buffer memory from cpu to gpu
   void *data;
-  vkMapMemory(device, vertex_buffer_memory, 0, buffer_info.size, 0, &data);
-  // GPU access region
-  memcpy(data, vertices.data(), (size_t)buffer_info.size);
-  vkUnmapMemory(device, vertex_buffer_memory);
+  vkMapMemory(device, staging_buffer_memory, 0, buffer_size, 0, &data);
+  memcpy(data, vertices.data(), (size_t)buffer_size);
+  vkUnmapMemory(device, staging_buffer_memory);
+
+  create_buffer(
+      buffer_size,
+      // final vertex buffer: transfer_dst & vertex_buffer
+      VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertex_buffer, vertex_buffer_memory);
+  copy_buffer(staging_buffer, vertex_buffer, buffer_size);
+
+  // destroy buffers explicitly
+  vkDestroyBuffer(device, staging_buffer, nullptr);
+  vkFreeMemory(device, staging_buffer_memory, nullptr);
+}
+void HelloTriangleApplication::create_index_buffer() {
+
+  VkDeviceSize buffer_size = sizeof(indices[0]) * indices.size();
+  VkBuffer staging_buffer;
+  VkDeviceMemory staging_buffer_memory;
+
+  create_buffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                staging_buffer, staging_buffer_memory);
+  // copy buffer memory from cpu to gpu
+  void *data;
+  vkMapMemory(device, staging_buffer_memory, 0, buffer_size, 0, &data);
+  memcpy(data, indices.data(), (size_t)buffer_size);
+  vkUnmapMemory(device, staging_buffer_memory);
+
+  create_buffer(
+      buffer_size,
+      // final vertex buffer: transfer_dst & index_buffer
+      VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, index_buffer, index_buffer_memory);
+  copy_buffer(staging_buffer, index_buffer, buffer_size);
+
+  // destroy buffers explicitly
+  vkDestroyBuffer(device, staging_buffer, nullptr);
+  vkFreeMemory(device, staging_buffer_memory, nullptr);
 }

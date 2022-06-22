@@ -49,9 +49,11 @@ typedef struct Vertex {
 
 typedef struct QueueFamilyIndices {
   std::optional<uint32_t> graphics_family;
+  std::optional<uint32_t> transfer_family;
   std::optional<uint32_t> present_family;
   bool is_complete() {
-    return graphics_family.has_value() && present_family.has_value();
+    return graphics_family.has_value() && transfer_family.has_value() &&
+           present_family.has_value();
   }
 } QueueFamilyIndices;
 
@@ -65,17 +67,25 @@ class HelloTriangleApplication {
 public:
   void run();
 
-  std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                                  {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-                                  {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+  std::vector<Vertex> vertices = {
+      {{-0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+      {{0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+  };
+
+  std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
 
 private:
   static const int MAX_FRAMES_IN_FLIGHT = 1;
   SDL_Window *window = nullptr;
-  int width = 800, height = 600;
+  int width = 800;
+  int height = 600;
   bool is_running = true;
   bool is_initialized = false;
-  uint32_t extension_count = 0, layer_count = 0, device_count = 0;
+  uint32_t extension_count = 0;
+  uint32_t layer_count = 0;
+  uint32_t device_count = 0;
   // do not use std::string_view: not ensure end '\0' format str
   std::vector<const char *> extension_names{};
   std::vector<const char *> validation_layers = {"VK_LAYER_KHRONOS_validation"};
@@ -93,6 +103,7 @@ private:
   VkPhysicalDevice physical_device{VK_NULL_HANDLE};
   VkDevice device;
   VkQueue graphics_queue;
+  VkQueue transfer_queue;
   VkQueue present_queue;
   VkSurfaceKHR surface;
   VkSwapchainKHR swapchain;
@@ -105,6 +116,7 @@ private:
   VkPipeline graphics_pipeline;
   std::vector<VkFramebuffer> swapchain_framebuffers;
   VkCommandPool command_pool;
+  VkCommandPool transfer_command_pool;
   std::vector<VkCommandBuffer> command_buffers;
   std::vector<VkSemaphore> image_available_semaphores;
   std::vector<VkSemaphore> render_finished_semaphores;
@@ -115,6 +127,8 @@ private:
 
   VkBuffer vertex_buffer;
   VkDeviceMemory vertex_buffer_memory; // __DEVICE__
+  VkBuffer index_buffer;
+  VkDeviceMemory index_buffer_memory;
 
   void init_window();
   void init_vulkan();
@@ -125,7 +139,7 @@ private:
   bool check_extensions_support();
   void setup_debug_messenger();
 
-  QueueFamilyIndices find_queue_families(VkPhysicalDevice device);
+  QueueFamilyIndices find_queue_families(VkPhysicalDevice physical_device);
   bool is_suitable_device(VkPhysicalDevice device);
   void pick_physical_device();
   void create_logical_device();
@@ -150,7 +164,13 @@ private:
   void create_graphics_pipeline();
   void create_framebuffers();
   void create_command_pool();
+  // buffer creation helper
+  void create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                     VkMemoryPropertyFlags properties, VkBuffer &buffer,
+                     VkDeviceMemory &buffer_memory);
+  void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
   void create_vertex_buffer();
+  void create_index_buffer();
   void create_command_buffer();
   void record_command_buffer(VkCommandBuffer command_buffer,
                              uint32_t image_index);
