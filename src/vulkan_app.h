@@ -17,6 +17,7 @@ typedef struct Vertex {
   using Vec3f = Eigen::Vector3f;
   Vec2f pos;
   Vec3f color;
+  Vec2f tex_coord;
 
   // A vertex binding describes at which rate to load data from memory
   // throughout the vertices.
@@ -28,9 +29,8 @@ typedef struct Vertex {
     return binding_description;
   }
 
-  static std::array<VkVertexInputAttributeDescription, 2>
-  get_attribute_descriptions() {
-    std::array<VkVertexInputAttributeDescription, 2> attribute_descriptions = {
+  static auto get_attribute_descriptions() {
+    std::array<VkVertexInputAttributeDescription, 3> attribute_descriptions = {
         VkVertexInputAttributeDescription{
             .location = 0, // location in vertex shader input
             .binding = 0,
@@ -41,7 +41,13 @@ typedef struct Vertex {
             .location = 1,
             .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT, // vec3
-            .offset = (uint32_t)offsetof(Vertex, color)}};
+            .offset = (uint32_t)offsetof(Vertex, color)},
+        VkVertexInputAttributeDescription{
+            .location = 2,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT, // vec2
+            .offset = (uint32_t)offsetof(Vertex, tex_coord)}};
+
     return attribute_descriptions;
   }
 
@@ -74,10 +80,10 @@ public:
   void run();
 
   std::vector<Vertex> vertices = {
-      {{-0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-      {{0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
-      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+      {{-0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
+      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+      {{0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
   };
 
   std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
@@ -141,6 +147,11 @@ private:
   std::vector<VkBuffer> uniform_buffers;
   std::vector<VkDeviceMemory> uniform_buffers_memory;
 
+  VkImage texture_image;
+  VkImageView texture_image_view;
+  VkSampler texture_sampler;
+  VkDeviceMemory texture_image_memory;
+
   void init_window();
   void init_vulkan();
   bool check_device_extension_support(VkPhysicalDevice device);
@@ -169,6 +180,7 @@ private:
   VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR &capabilities);
 
   void create_swapchain();
+  VkImageView create_image_view(VkImage image, VkFormat format);
   void create_image_views();
   void create_render_pass();
   VkShaderModule create_shader_module(std::vector<char> const &code);
@@ -182,6 +194,18 @@ private:
                      VkMemoryPropertyFlags properties, VkBuffer &buffer,
                      VkDeviceMemory &buffer_memory);
   void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
+  void copy_buffer2image(VkBuffer buffer, VkImage image, uint32_t width,
+                         uint32_t height);
+  void create_image(uint32_t width, uint32_t height, VkFormat format,
+                    VkImageTiling tiling, VkImageUsageFlags usage,
+                    VkMemoryPropertyFlags properties, VkImage &image,
+                    VkDeviceMemory &image_memory);
+  void transition_image_layout(VkImage image, VkFormat format,
+                               VkImageLayout old_layout,
+                               VkImageLayout new_layout);
+  void create_texture_image();
+  void create_texture_image_view();
+  void create_texture_sampler();
   void create_vertex_buffer();
   void create_index_buffer();
   void create_uniform_buffers();
@@ -195,6 +219,10 @@ private:
   void cleanup_swapchain();
   void recreate_swapchain();
   void create_instance();
+
+  VkCommandBuffer begin_single_commands(VkCommandPool command_pool);
+  void end_single_commands(VkCommandBuffer command_buffer,
+                           VkCommandPool command_pool);
 
   void main_loop();
   void draw_frame();

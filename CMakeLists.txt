@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # include(CTest)
 # enable_testing()
-
+include_directories(./external)
 add_subdirectory(./src)
 
 # set(CPACK_PROJECT_NAME ${PROJECT_NAME})
