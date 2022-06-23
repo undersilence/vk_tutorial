@@ -235,7 +235,7 @@ VulkanApplication::find_queue_families(VkPhysicalDevice physical_device) {
   for (uint32_t i = 0; i < queue_family_count; ++i) {
     if (queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
       result.graphics_family = i;
-      continue;
+      // continue;
     }
 
     if (queue_families[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
@@ -294,8 +294,8 @@ void VulkanApplication::create_logical_device() {
                                            indices.transfer_family.value(),
                                            indices.present_family.value()};
 
-//  std::cerr << "unique queue family size " << queue_families_set.size()
-//            << std::endl;
+  //  std::cerr << "unique queue family size " << queue_families_set.size()
+  //            << std::endl;
 
   float queue_priority = 1.0f;
   for (auto queue_family : queue_families_set) {
@@ -388,8 +388,8 @@ VkPresentModeKHR VulkanApplication::choose_swap_present_mode(
       return mode;
     }
   }
-  return VK_PRESENT_MODE_IMMEDIATE_KHR;
-  std::cerr << "falling back to FIFO mode!\n";
+  // return VK_PRESENT_MODE_IMMEDIATE_KHR;
+  std::cerr << "fallback to FIFO mode!\n";
   return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -448,12 +448,15 @@ void VulkanApplication::create_swapchain() {
           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, // directly present, post-process
                                                // :
                                                // VK_IMAGE_USAGE_TRANSFER_DST_BIT
+      .preTransform = swapchain_support.capabilities.currentTransform,
+      .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
       .presentMode = present_mode,
-      .clipped = VK_TRUE, // clip screen (window) obscured
-      .oldSwapchain = VK_NULL_HANDLE};
+      .clipped = VK_TRUE // clip screen (window) obscured
+  };
 
   auto indices = find_queue_families(physical_device);
   uint32_t queue_family_indices[] = {indices.graphics_family.value(),
+                                     indices.transfer_family.value(),
                                      indices.present_family.value()};
 
   if (indices.graphics_family != indices.present_family) {
@@ -462,12 +465,9 @@ void VulkanApplication::create_swapchain() {
     create_info.pQueueFamilyIndices = queue_family_indices;
   } else {
     create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    create_info.queueFamilyIndexCount = 0;
-    create_info.pQueueFamilyIndices = nullptr;
+    //    create_info.queueFamilyIndexCount = 0;
+    //    create_info.pQueueFamilyIndices = nullptr;
   }
-
-  create_info.preTransform = swapchain_support.capabilities.currentTransform;
-  create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
   if (vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain) !=
       VK_SUCCESS) {
@@ -483,9 +483,6 @@ void VulkanApplication::create_swapchain() {
 
   swapchain_image_format = surface_format.format;
   swapchain_extent = extent;
-
-  std::cout << "new swapchain_extent: " << extent.width << ", " << extent.height
-            << std::endl;
 }
 
 void VulkanApplication::create_image_views() {
@@ -851,18 +848,18 @@ void VulkanApplication::record_command_buffer(VkCommandBuffer command_buffer,
   vkCmdBeginRenderPass(command_buffer, &render_pass_info,
                        VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_pipeline);
-    VkBuffer vertex_buffers[] = {vertex_buffer};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-    vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16);
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    graphics_pipeline);
+  VkBuffer vertex_buffers[] = {vertex_buffer};
+  VkDeviceSize offsets[] = {0};
+  vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+  vkCmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
-    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipeline_layout, 0, 1,
-                            &descriptor_sets[current_frame], 0, nullptr);
-    vkCmdDrawIndexed(command_buffer, (uint32_t)indices.size(), 1, 0, 0, 0);
-    // vkCmdDraw(command_buffer, (uint32_t)vertices.size(), 1, 0, 0);
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_layout, 0, 1,
+                          &descriptor_sets[current_frame], 0, nullptr);
+  vkCmdDrawIndexed(command_buffer, (uint32_t)indices.size(), 1, 0, 0, 0);
+  // vkCmdDraw(command_buffer, (uint32_t)vertices.size(), 1, 0, 0);
 
   vkCmdEndRenderPass(command_buffer);
   if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
@@ -989,12 +986,13 @@ void VulkanApplication::create_instance() {
 
 void VulkanApplication::main_loop() {
   SDL_Event e;
-  uint32_t start_time = SDL_GetTicks();
-  uint32_t current_time;
-  uint32_t fps_frames = 0;
+  uint32_t duration = 0, start_time = 0, total_frames = 0;
+  uint32_t milliseconds_per_frame = 16;
 
   while (is_running) {
     while (SDL_PollEvent(&e) != 0) {
+
+      // start_time = SDL_GetTicks();
       // do rendering loop
       if (e.type == SDL_QUIT)
         is_running = false;
@@ -1003,12 +1001,22 @@ void VulkanApplication::main_loop() {
           // auto app =
           // reinterpret_cast<VulkanApplication*>(SDL_GetWindowData(window,
           // "App")); app->framebuffer_resized = true;
-          // framebuffer_resized = true; // NO NEED FOR SDL2 surface
+          framebuffer_resized = true; // NO NEED FOR SDL2 surface
         }
       }
-      SDL_SetWindowTitle(window, (std::string("SDL_Vulkan_Demo, frames:") + std::to_string(++fps_frames)).c_str());
-      draw_frame();
+
+      //      uint32_t duration = SDL_GetTicks() - start_time;
+      //      if (duration > milliseconds_per_frame) {
     }
+
+    start_time = SDL_GetTicks();
+
+    draw_frame();
+
+    duration += SDL_GetTicks() - start_time;
+    float fps = ++total_frames / (float)(duration == 0 ? 1 : duration) * 1000;
+    std::string title = "SDL_Vulkan_DEMO fps:" + std::to_string(fps);
+    SDL_SetWindowTitle(window, title.c_str());
   }
   vkDeviceWaitIdle(device);
 }
@@ -1141,6 +1149,7 @@ uint32_t VulkanApplication::find_memory_type(uint32_t type_filter,
   }
   throw std::runtime_error("failed to find suitable memory type!");
 }
+
 void VulkanApplication::create_buffer(VkDeviceSize size,
                                       VkBufferUsageFlags usage,
                                       VkMemoryPropertyFlags properties,
@@ -1338,8 +1347,8 @@ void VulkanApplication::update_uniform_buffer(uint32_t current_image) {
   ubo.project(1, 1) *= -1;
 
   void *data;
-  vkMapMemory(device, uniform_buffers_memory[current_image], 0,
-              sizeof(ubo), 0, &data);
+  vkMapMemory(device, uniform_buffers_memory[current_image], 0, sizeof(ubo), 0,
+              &data);
   memcpy(data, &ubo, sizeof(ubo));
   vkUnmapMemory(device, uniform_buffers_memory[current_image]);
 }
@@ -1380,7 +1389,7 @@ void VulkanApplication::create_descriptor_sets() {
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
     VkDescriptorBufferInfo buffer_info{.buffer = uniform_buffers[i],
                                        .offset = 0,
-                                       .range = sizeof(UniformBufferObject) };
+                                       .range = sizeof(UniformBufferObject)};
 
     VkWriteDescriptorSet descriptor_write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,

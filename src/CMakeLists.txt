@@ -23,5 +23,18 @@ message("Vulkan Include Directories: ${Vulkan_INCLUDE_DIRS}")
 target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${Vulkan_LIBRARIES})
 
+
+#add_executable(TEMP template.cpp)
+#find_package(glm CONFIG REQUIRED)
+#target_link_libraries(TEMP PRIVATE glm::glm)
+
+#find_package(glfw3 CONFIG REQUIRED)
+#target_link_libraries(TEMP PRIVATE glfw)
+
+#target_link_libraries(TEMP PRIVATE SDL2::SDL2  SDL2::SDL2main)
+
+#target_include_directories(TEMP PRIVATE ${Vulkan_INCLUDE_DIRS})
+#target_link_libraries(TEMP PRIVATE ${Vulkan_LIBRARIES})
+
 # find_path(VULKAN_HEADERS_INCLUDE_DIRS "vk_video/vulkan_video_codec_h264std.h")
 # target_include_directories(${PROJECT_NAME} PRIVATE ${VULKAN_HEADERS_INCLUDE_DIRS})
