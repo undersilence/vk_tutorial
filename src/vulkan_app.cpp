@@ -171,6 +171,11 @@ bool VulkanApplication::check_extensions_support() {
 
   init_SDL2_extensions();
 
+#ifdef __APPLE__
+  extension_names.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+  extension_names.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#endif
+
   for (const auto &require_extension : extension_names) {
     bool is_support{false};
     for (const auto &extension : extensions) {
@@ -949,6 +954,7 @@ void VulkanApplication::create_instance() {
 
   VkInstanceCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
       .pApplicationInfo = &app_info,
       .enabledExtensionCount = extension_count,
       .ppEnabledExtensionNames = (const char **)extension_names.data()};
