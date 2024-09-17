@@ -126,11 +126,12 @@ class VulkanApplication {
     std::vector<VkImage> swapchain_images;
     VkFormat swapchain_image_format;
     VkExtent2D swapchain_extent;
-    std::vector<VkImageView>
-        swapchain_image_views;  // using an image as a texture
+    // using an image as a texture
+    std::vector<VkImageView> swapchain_image_views;
     VkRenderPass render_pass;
     VkDescriptorSetLayout descriptor_set_layout;
-    VkDescriptorPool descriptor_pool;  // alloc descriptor_sets in the pool
+    // alloc descriptor_sets in the pool
+    VkDescriptorPool descriptor_pool;
     std::vector<VkDescriptorSet> descriptor_sets;
     VkPipelineLayout pipeline_layout;
     VkPipeline graphics_pipeline;

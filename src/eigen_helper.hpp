@@ -1,7 +1,7 @@
 //
 // Created by Admin on 2022/6/22.
 //
-
+#pragma once
 #ifndef VK_TUTORIAL_GEOMETRY_HELPER_HPP
 #define VK_TUTORIAL_GEOMETRY_HELPER_HPP
 
@@ -15,24 +15,23 @@ using Vec3f = Eigen::Vector3f;
 using Vec4f = Eigen::Vector4f;
 using Mat3f = Eigen::Matrix3f;
 using Mat4f = Eigen::Matrix4f;
-static inline const float PI = 3.1415926535f;
 
-float to_radian(float degree) { return degree / 180 * PI; }
+inline float to_radian(float degree) { return degree / 180 * EIGEN_PI; }
 
-float to_degree(float radian) { return radian * PI / 180; }
+inline float to_degree(float radian) { return radian * EIGEN_PI / 180; }
 
-Mat4f translate(float x, float y, float z) {
+inline Mat4f translate(float x, float y, float z) {
   Eigen::Affine3f transform = Eigen::Affine3f::Identity();
   return transform.translate(Vec3f(x, y, z)).matrix();
 }
 
-Mat4f rotate(float rad, Vec3f const &axis) {
+inline Mat4f rotate(float rad, Vec3f const &axis) {
   Eigen::Affine3f transform = Eigen::Affine3f::Identity();
   transform.rotate(Eigen::AngleAxis<float>(rad, axis.normalized()));
   return transform.matrix();
 }
 
-Mat4f perspective(float fovy, float aspect, float z_near, float z_far) {
+inline Mat4f perspective(float fovy, float aspect, float z_near, float z_far) {
   auto const tan_half_fovy = tan(fovy / 2);
   Mat4f result = Eigen::Matrix4f::Zero();
   result(0, 0) = 1 / (aspect * tan_half_fovy);
@@ -55,7 +54,7 @@ Eigen::Matrix4f ortho(float left, float right, float bottom, float top,
   return result;
 }
 
-Eigen::Matrix4f lookAt(Eigen::Vector3f const &eye,
+inline Eigen::Matrix4f lookAt(Eigen::Vector3f const &eye,
                        Eigen::Vector3f const &center,
                        Eigen::Vector3f const &up) {
   Eigen::Vector3f f(center - eye);
